@@ -62,9 +62,11 @@ prompt = ChatPromptTemplate.from_messages([
      "- Add the most relevant link from the context when it helps (a project URL, the projects page, the CV).\n"
      "- If something is not in the context, say you're not sure and offer Shohan's email and phone.\n"
      "- If the visitor asks for a form, wants to hire Shohan, get a quote, discuss a project, or book a call, "
-     "meeting or appointment: reply in ONE short sentence that the booking form is right below in this chat, "
-     "and end your reply with [BOOK]. Do not send them to a link or contact page and do not list steps; "
-     "the form opens automatically.\n\n"
+     "meeting or appointment: reply in ONE short sentence that the booking form is right below in this chat "
+     "(use their name if you know it, and don't repeat your earlier wording), and end your reply with [BOOK]. "
+     "If they told you their name, email or phone anywhere in this chat, add it after [BOOK] as "
+     "[NAME: ...], [EMAIL: ...] or [PHONE: ...] so the form is filled in for them; leave out anything they didn't give. "
+     "Do not send them to a link or contact page and do not list steps; the form opens automatically.\n\n"
      "Context:\n{context}"),
     MessagesPlaceholder("history"),  # the chat so far, so follow-up questions make sense
     ("human", "{question}"),
@@ -86,6 +88,8 @@ class Question(BaseModel):
 # safety net: these words always open the booking form, even if the AI forgets to add [BOOK]
 WANTS_BOOKING = re.compile(r"\b(forms?|book(ing)?|appointment|meeting|schedule|hire|quote)\b"
                            r"|ফর্ম|ফরম|বুকিং|বুক কর|অ্যাপয়েন্টমেন্ট|এপয়েন্টমেন্ট|মিটিং|হায়ার", re.IGNORECASE)  # not bare বুক: ফেসবুক
+# what the visitor already told the AI, used to fill in the booking form: [NAME: Shihab]
+DETAILS = re.compile(r"\[(NAME|EMAIL|PHONE):([^\]]*)\]", re.IGNORECASE)
 
 
 def ask(q: Question) -> dict:
@@ -97,7 +101,9 @@ def ask(q: Question) -> dict:
     history = [(t.role, t.content) for t in q.history]
     reply = chain.invoke({"context": context, "history": history, "question": q.message})
     book = "[BOOK]" in reply or bool(WANTS_BOOKING.search(q.message))
-    return {"reply": reply.replace("[BOOK]", "").replace("**", "").strip(), "book": book}
+    prefill = {key.lower(): value.strip()[:100] for key, value in DETAILS.findall(reply) if value.strip()}
+    reply = DETAILS.sub("", reply).replace("[BOOK]", "").replace("**", "").strip()
+    return {"reply": reply, "book": book, "prefill": prefill}
 
 
 # 5. LEADS

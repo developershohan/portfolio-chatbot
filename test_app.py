@@ -13,12 +13,12 @@ import app
 
 # fake LLM: records what it was sent and asks for the booking form
 seen = []
-app.chain = app.prompt | RunnableLambda(lambda p: seen.append(p.to_messages()) or "Happy to help! [BOOK]")
+app.chain = app.prompt | RunnableLambda(lambda p: seen.append(p.to_messages()) or "Happy to help, Shihab! [BOOK] [NAME: Shihab]")
 client = TestClient(app.app)
 
 reply = client.post("/chat", json={"message": "Can we meet?", "history": [
     {"role": "user", "content": "Do you build plugins?"}, {"role": "assistant", "content": "Yes!"}]}).json()
-assert reply == {"reply": "Happy to help!", "book": True}, reply
+assert reply == {"reply": "Happy to help, Shihab!", "book": True, "prefill": {"name": "Shihab"}}, reply
 assert [m.type for m in seen[0]] == ["system", "human", "ai", "human"], "chat history must reach the LLM"
 
 # the form opens when the visitor asks for it, even if the AI forgets [BOOK]

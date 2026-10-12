@@ -1,7 +1,10 @@
-// Shohan Jr, the AI assistant for proshohan.com. Add this one line before </body>:
-// <script src="https://portfolio-chatbot-9lli.onrender.com/widget.js" defer></script>
+// Shohan Jr, the AI assistant for proshohan.com. Paste the loader snippet from README step 5 before </body>.
+// It fetches this file only after the page has loaded, so a sleeping server can never hold up the site.
 (() => {
-  const API = new URL(document.currentScript.src).origin;
+  if (window.shohanJr) return; // already on the page (snippet added twice, or re-run by a cache plugin)
+  window.shohanJr = true;
+  // currentScript is null when an optimisation plugin (NitroPack, WP Rocket...) runs the script itself
+  const API = document.currentScript?.src ? new URL(document.currentScript.src).origin : "https://portfolio-chatbot-9lli.onrender.com";
   const AVATAR = "https://proshohan.com/wp-content/uploads/2025/10/Generated-Image-October-03-2025-6_43PM.png";
   const SERVICES = ["Custom WordPress theme", "Custom plugin or widget", "WooCommerce / e-commerce",
     "WordPress debugging", "React / headless WordPress", "API integration", "Something else"];
@@ -136,15 +139,27 @@
       const data = await post("/chat", { message, history: history.slice(-10) });
       write(reply, data.reply);
       history.push({ role: "user", content: message }, { role: "assistant", content: data.reply.slice(0, 2000) });
-      if (data.book) showForm();
+      if (data.book) showForm(data.prefill);
+      save();
     } catch {
       write(reply, FALLBACK);
     }
-    log.scrollTop = log.scrollHeight;
+    // show the new reply from its first line, with the form (if any) right under it
+    log.scrollTop += reply.getBoundingClientRect().top - log.getBoundingClientRect().top - 12;
   }
 
-  function showForm() {
-    if ($("lead")) return $("lead").scrollIntoView({ behavior: "smooth" });
+  function showForm(prefill = {}, focus = true) {
+    const form = $("lead") || makeForm();
+    for (const [name, value] of Object.entries(prefill)) { // details the visitor already gave in the chat
+      if (form.elements[name] && !form.elements[name].value) form.elements[name].value = value;
+    }
+    log.append(form); // already open? move it under the latest reply, keeping what they typed
+    if (!focus) return;
+    log.scrollTop += form.getBoundingClientRect().top - log.getBoundingClientRect().top - 12;
+    [...form.elements].find((el) => el.required && !el.value)?.focus({ preventScroll: true });
+  }
+
+  function makeForm() {
     const form = document.createElement("form");
     form.id = "lead";
     form.innerHTML = `
@@ -166,15 +181,16 @@
       try {
         await post("/lead", lead);
         form.remove();
-        say(`✅ Thanks ${lead.name}! Your request is saved. Shohan will email you to confirm the appointment.`, "bot");
+        const thanks = `✅ Thanks ${lead.name}! Your request is saved. Shohan will email you to confirm the appointment.`;
+        say(thanks, "bot");
+        history.push({ role: "assistant", content: thanks });
+        save();
       } catch {
         form.querySelector(".go").disabled = false;
         say("Sorry, that didn't go through. Please check the form or email dev.shohanur@gmail.com.", "bot");
       }
     };
-    log.append(form);
-    log.scrollTop = log.scrollHeight;
-    form.querySelector("input").focus();
+    return form;
   }
 
   const setOpen = (open) => {
@@ -191,7 +207,10 @@
   root.addEventListener("keydown", (e) => { if (e.key === "Escape") setOpen(false); });
   $("chips").onclick = (e) => {
     const chip = e.target.closest("button");
-    if (chip) chip.dataset.q ? send(chip.dataset.q) : showForm();
+    if (!chip) return;
+    if (chip.dataset.q) return send(chip.dataset.q);
+    showForm();
+    save();
   };
   $("ask").onsubmit = (e) => {
     e.preventDefault();
@@ -199,6 +218,25 @@
     q.value = "";
     if (message) send(message);
   };
+
+  // keep the chat when the visitor opens another page or tab; forget it after a day without use
+  const SAVED = "shohanjr-chat";
+  function save() {
+    try { localStorage.setItem(SAVED, JSON.stringify({ at: Date.now(), history: history.slice(-40), form: !!$("lead") })); } catch {}
+  }
+  function restore(raw) { // never calls save(): two open tabs would keep waking each other up
+    const saved = JSON.parse(raw);
+    if (!Array.isArray(saved?.history) || Date.now() - saved.at > 864e5) return;
+    log.querySelectorAll(".msg").forEach((m) => m.remove());
+    history.splice(0, Infinity, ...saved.history);
+    history.forEach((t) => say(t.content, t.role === "user" ? "me" : "bot"));
+    if (saved.form) showForm({}, false);
+    else $("lead")?.remove();
+  }
+  try { restore(localStorage.getItem(SAVED)); } catch {} // storage can be blocked (private mode) or hold junk
+  addEventListener("storage", (e) => { // chatting in another tab: show those messages here too
+    if (e.key === SAVED) try { restore(e.newValue); } catch {}
+  });
 
   // a friendly nudge once per visit, after a few seconds
   let nudged = false;

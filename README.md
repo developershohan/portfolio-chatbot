@@ -100,8 +100,26 @@ In WordPress, **Elementor → Custom Code → Add New** (Elementor Pro), locatio
 or use the free **WPCode** plugin's footer box. Paste:
 
 ```html
-<script src="https://YOUR-APP.onrender.com/widget.js" defer></script>
+<script nitro-exclude data-no-optimize="1" data-no-defer="1">
+(function () {
+  function load() {
+    var s = document.createElement("script");
+    s.src = "https://YOUR-APP.onrender.com/widget.js";
+    document.body.appendChild(s);
+  }
+  document.readyState === "complete" ? load() : window.addEventListener("load", load);
+})();
+</script>
 ```
+
+Don't use a plain `<script src=".../widget.js" defer>` tag: while the free Render server is asleep the browser
+waits up to a minute for it, the page's `load` event never fires, and the theme's preloader stays on a black screen.
+The snippet above loads the widget only after the page is ready. The attributes on the first line tell
+NitroPack and LiteSpeed Cache to leave the snippet alone.
+
+**Then clear every cache**, or only logged-in users will see the bubble (caches serve visitors an old copy of the page):
+NitroPack → **Purge Cache**, LiteSpeed Cache → **Purge All** (if installed), and Hostinger hPanel → **Website → Clear cache**.
+Check in a private/incognito window.
 
 ## 6. See your appointment requests
 
@@ -121,4 +139,4 @@ Edit or add files in `knowledge/`, then `git add . && git commit -m "update" && 
   Groq retires models from time to time: if chat suddenly fails, check https://console.groq.com/docs/deprecations
   and add a `MODEL` environment variable on Render with the replacement (e.g. `openai/gpt-oss-20b`).
 - Only `https://proshohan.com` can call the API (CORS in `app.py`). Add other domains there if needed.
-- Brand colour: change `COLOR` at the top of `widget.js`. Services in the form: `SERVICES` in `widget.js`.
+- Brand colour: change `--lime` at the top of the `<style>` in `widget.js`. Services in the form: `SERVICES` in `widget.js`.
