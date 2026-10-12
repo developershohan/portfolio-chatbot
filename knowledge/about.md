@@ -81,6 +81,7 @@ All projects: https://proshohan.com/projects/
 
 To hire Shohan or discuss a project, use any of these:
 
+- Phone (call): +880 1580-334007 (local format 01580334007)
 - Email: dev.shohanur@gmail.com
 - Contact form: https://proshohan.com/contact-us/
 - LinkedIn: https://www.linkedin.com/in/developershohan/
@@ -88,3 +89,5 @@ To hire Shohan or discuss a project, use any of these:
 - WordPress.org profile: https://profiles.wordpress.org/shohanur007/
 - Facebook: https://www.facebook.com/developershohan
 - CV / resume: https://proshohan.com/wp-content/uploads/2026/03/shohanur_rahman_cv.pdf
+- Blog: https://proshohan.com/blog/
+- Location: Badda, Dhaka, Bangladesh

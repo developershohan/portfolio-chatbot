@@ -1,55 +1,123 @@
-// Chat bubble for your website. Add this one line before </body>:
-// <script src="https://YOUR-APP.onrender.com/widget.js" defer></script>
+// Shohan Jr, the AI assistant for proshohan.com. Add this one line before </body>:
+// <script src="https://portfolio-chatbot-9lli.onrender.com/widget.js" defer></script>
 (() => {
   const API = new URL(document.currentScript.src).origin;
-  const COLOR = "#4f46e5"; // change to your brand colour
+  const AVATAR = "https://proshohan.com/wp-content/uploads/2025/10/Generated-Image-October-03-2025-6_43PM.png";
   const SERVICES = ["Custom WordPress theme", "Custom plugin or widget", "WooCommerce / e-commerce",
     "WordPress debugging", "React / headless WordPress", "API integration", "Something else"];
+  const FALLBACK = "Sorry, I couldn't answer right now. Please email dev.shohanur@gmail.com or call +880 1580-334007.";
   const history = []; // the conversation so far, sent with every question so follow-ups work
   fetch(API, { mode: "no-cors" }).catch(() => {}); // wake the free server while the visitor reads the page
 
-  document.head.insertAdjacentHTML("beforeend", `<style>
-    #pc-btn{position:fixed;right:20px;bottom:20px;width:56px;height:56px;border:0;border-radius:50%;background:${COLOR};color:#fff;font-size:26px;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.25);z-index:99999}
-    #pc-box{position:fixed;right:20px;bottom:88px;width:min(370px,calc(100vw - 32px));height:min(560px,calc(100vh - 120px));display:flex;flex-direction:column;background:#fff;border-radius:14px;box-shadow:0 10px 40px rgba(0,0,0,.25);overflow:hidden;font:15px/1.45 system-ui,sans-serif;z-index:99999}
-    #pc-box[hidden]{display:none}
-    #pc-box button{text-transform:none;letter-spacing:normal}
-    #pc-head{background:${COLOR};color:#fff;padding:14px 16px;font-weight:600;display:flex;justify-content:space-between;align-items:center}
-    #pc-head button{background:none;border:0;color:#fff;font-size:22px;cursor:pointer;padding:0}
-    #pc-log{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:8px;background:#f6f7fb}
-    .pc-msg{max-width:85%;padding:9px 13px;border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere;color:#111}
-    .pc-bot{background:#fff;align-self:flex-start;border:1px solid #e5e7eb}
-    .pc-me{background:${COLOR};color:#fff;align-self:flex-end}
-    #pc-lead{display:flex;flex-direction:column;gap:8px;max-width:100%;width:100%;box-sizing:border-box;white-space:normal}
-    #pc-lead label{display:flex;flex-direction:column;gap:3px;font-size:13px;color:#374151}
-    #pc-lead input,#pc-lead select,#pc-lead textarea{font:inherit;padding:8px;border:1px solid #d1d5db;border-radius:8px;color:#111;background:#fff;width:100%;box-sizing:border-box}
-    #pc-lead button{background:${COLOR};color:#fff;border:0;border-radius:8px;padding:10px;font:inherit;font-weight:600;cursor:pointer}
-    #pc-lead button:disabled{opacity:.6}
-    #pc-chips{display:flex;flex-wrap:wrap;gap:6px;padding:8px 10px;border-top:1px solid #e5e7eb;background:#fff}
-    #pc-chips button{border:1px solid ${COLOR};color:${COLOR};background:#fff;border-radius:999px;padding:5px 11px;font:inherit;font-size:13px;cursor:pointer}
-    #pc-form{display:flex;border-top:1px solid #e5e7eb}
-    #pc-in{flex:1;border:0;padding:14px;font:inherit;outline:none;color:#111;background:#fff}
-    #pc-form button{border:0;background:none;color:${COLOR};font:inherit;font-weight:600;padding:0 16px;cursor:pointer}
-  </style>`);
+  // Shadow DOM: the widget gets its own little page, so the theme's CSS can't break it (and it can't break the theme)
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = host.attachShadow({ mode: "open" });
+  root.innerHTML = `<style>
+    :host{all:initial;--lime:#c9f31d;--bg:#121212;--card:#1c1c1c;--line:rgba(255,255,255,.1);--text:#ececec;--muted:#9a9a9a;--body:Kanit,system-ui,sans-serif;--head:Teko,Oswald,Impact,sans-serif}
+    *{box-sizing:border-box}
+    [hidden]{display:none!important}
+    button{font-family:var(--body);cursor:pointer}
+    :focus-visible{outline:2px solid var(--lime);outline-offset:2px}
+    #box{position:fixed;right:24px;bottom:100px;width:380px;max-width:calc(100vw - 32px);height:600px;max-height:calc(100vh - 124px);display:flex;flex-direction:column;background:var(--bg);color:var(--text);font:15px/1.5 var(--body);border:1px solid var(--line);border-radius:20px;overflow:hidden;box-shadow:0 24px 60px rgba(0,0,0,.45);z-index:2147483000;opacity:0;visibility:hidden;transform:translateY(16px) scale(.98);transition:opacity .2s,transform .2s,visibility 0s .2s}
+    #box.open{opacity:1;visibility:visible;transform:none;transition-delay:0s}
+    header{display:flex;align-items:center;gap:12px;padding:14px 16px;background:linear-gradient(135deg,#1d1d1d,#0b0b0b);border-bottom:1px solid var(--line)}
+    .av{position:relative;flex:none}
+    .av img{display:block;width:44px;height:44px;border-radius:50%;object-fit:cover;object-position:50% 12%;background:#fff;border:2px solid var(--lime)}
+    .av::after{content:"";position:absolute;right:0;bottom:2px;width:11px;height:11px;border-radius:50%;background:#22c55e;border:2px solid #121212}
+    .name{font:600 26px/1 var(--head);letter-spacing:.04em;text-transform:uppercase;color:#fff}
+    .sub{font-size:12px;color:var(--muted)}
+    #close{margin-left:auto;width:34px;height:34px;border:1px solid var(--line);border-radius:50%;background:none;color:#fff;font-size:20px;line-height:1}
+    #close:hover{border-color:var(--lime);color:var(--lime)}
+    #log{flex:1;overflow-y:auto;padding:18px 16px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin;scrollbar-color:#333 transparent}
+    .hero h2{margin:0 0 6px;font:600 32px/1 var(--head);text-transform:uppercase;letter-spacing:.02em;color:#fff}
+    .hero em{font:italic 700 26px "Playfair Display",Georgia,serif;text-transform:none;letter-spacing:0;color:var(--lime)}
+    .hero p{margin:0 0 4px;font-size:14px;color:var(--muted)}
+    .msg{max-width:86%;padding:10px 14px;border-radius:16px;white-space:pre-wrap;overflow-wrap:anywhere;animation:up .25s ease}
+    .bot{align-self:flex-start;background:var(--card);border:1px solid var(--line);border-bottom-left-radius:4px}
+    .bot a{color:var(--lime)}
+    .me{align-self:flex-end;background:var(--lime);color:#0b0b0b;border-bottom-right-radius:4px}
+    .dots{display:inline-flex;gap:4px;padding:4px 0}
+    .dots i{width:7px;height:7px;border-radius:50%;background:var(--muted);animation:bounce 1s infinite}
+    .dots i:nth-child(2){animation-delay:.15s}.dots i:nth-child(3){animation-delay:.3s}
+    #chips{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px 0;border-top:1px solid var(--line)}
+    #chips button{border:1px solid var(--line);background:none;color:var(--text);border-radius:999px;padding:6px 13px;font-size:13px;transition:border-color .15s,color .15s}
+    #chips button:hover{border-color:var(--lime);color:var(--lime)}
+    #chips .hot{background:var(--lime);border-color:var(--lime);color:#0b0b0b;font-weight:500}
+    #chips .hot:hover{color:#0b0b0b;filter:brightness(1.08)}
+    #ask{display:flex;gap:8px;padding:10px 14px 6px}
+    #q{flex:1;min-width:0;background:#1a1a1a;border:1px solid var(--line);border-radius:999px;padding:11px 16px;color:#fff;font:15px var(--body);outline:none}
+    #q:focus{border-color:var(--lime)}
+    #q::placeholder{color:#777}
+    .round{flex:none;width:44px;height:44px;border:0;border-radius:50%;background:var(--lime);color:#0b0b0b;display:grid;place-items:center}
+    .note{padding:0 14px 10px;font-size:11px;color:#666;text-align:center}
+    #lead{align-self:stretch;display:flex;flex-direction:column;gap:10px;padding:16px;background:var(--card);border:1px solid var(--line);border-radius:16px;animation:up .25s ease}
+    #lead h3{margin:0;font:600 26px/1 var(--head);text-transform:uppercase;letter-spacing:.03em;color:#fff}
+    #lead h3 em{font:italic 700 20px "Playfair Display",Georgia,serif;text-transform:none;color:var(--lime)}
+    #lead label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+    #lead input,#lead select,#lead textarea{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:#fff;font:14px var(--body);outline:none;color-scheme:dark}
+    #lead input:focus,#lead select:focus,#lead textarea:focus{border-color:var(--lime)}
+    #lead .go{border:0;border-radius:999px;padding:12px;background:var(--lime);color:#0b0b0b;font-size:15px;font-weight:600}
+    #lead .go:disabled{opacity:.6}
+    #open{position:fixed;right:24px;bottom:24px;width:62px;height:62px;border:0;border-radius:50%;background:var(--lime);color:#0b0b0b;display:grid;place-items:center;box-shadow:0 10px 30px rgba(201,243,29,.35);z-index:2147483000;transition:transform .2s}
+    #open:hover{transform:scale(1.06)}
+    #open .x,#open.on .chat{display:none}
+    #open.on .x{display:block}
+    #nudge{position:fixed;right:98px;bottom:34px;max-width:230px;padding:10px 14px;background:var(--bg);color:#fff;font:14px/1.4 var(--body);border:1px solid var(--lime);border-radius:14px 14px 4px 14px;box-shadow:0 10px 30px rgba(0,0,0,.3);cursor:pointer;z-index:2147483000;animation:up .3s ease}
+    #nudge b{color:var(--lime);font-weight:500}
+    @keyframes up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+    @keyframes bounce{0%,80%,100%{opacity:.35;transform:none}40%{opacity:1;transform:translateY(-3px)}}
+    @media (max-width:480px){#box{inset:0;width:100%;max-width:none;height:100%;max-height:none;border:0;border-radius:0}#box.open~#open,#nudge{display:none}}
+    @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  </style>
+  <div id="box" role="dialog" aria-label="Chat with Shohan Jr">
+    <header>
+      <div class="av"><img src="${AVATAR}" alt=""></div>
+      <div><div class="name">Shohan Jr</div><div class="sub">Shohan's AI assistant · Online</div></div>
+      <button id="close" aria-label="Close chat">×</button>
+    </header>
+    <div id="log" aria-live="polite">
+      <div class="hero"><h2>Hey, I'm <em>Shohan Jr</em></h2>
+        <p>Ask me about Shohan's skills, projects and services, or book a call in seconds.</p></div>
+    </div>
+    <div id="chips">
+      <button type="button" data-q="What services does Shohan offer?">Services</button>
+      <button type="button" data-q="Show me Shohan's best projects">Projects</button>
+      <button type="button" data-q="How can I contact Shohan?">Contact</button>
+      <button type="button" class="hot" data-book>Book a call</button>
+    </div>
+    <form id="ask">
+      <input id="q" aria-label="Your question" placeholder="Ask Shohan Jr anything…" maxlength="500" autocomplete="off" required>
+      <button class="round" aria-label="Send"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    </form>
+    <div class="note">AI assistant · answers can be imperfect</div>
+  </div>
+  <div id="nudge" hidden>👋 Hi! I'm <b>Shohan Jr</b>. Need a website? Ask me anything.</div>
+  <button id="open" aria-label="Chat with Shohan Jr" aria-expanded="false">
+    <svg class="chat" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20.5l1.4-5A8 8 0 1 1 21 12z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01" stroke-width="3"/></svg>
+    <svg class="x" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>`;
 
-  document.body.insertAdjacentHTML("beforeend", `
-    <button id="pc-btn" aria-label="Open chat">💬</button>
-    <div id="pc-box" role="dialog" aria-label="Chat with Shohan's assistant" hidden>
-      <div id="pc-head">Ask about Shohan <button id="pc-x" aria-label="Close chat">×</button></div>
-      <div id="pc-log" aria-live="polite"></div>
-      <div id="pc-chips">
-        <button type="button" data-q="What services does Shohan offer?">💼 Services</button>
-        <button type="button" data-q="Show me some of Shohan's projects">📁 Projects</button>
-        <button type="button" data-book>📅 Book appointment</button>
-      </div>
-      <form id="pc-form"><input id="pc-in" aria-label="Your question" placeholder="Type your question…" maxlength="500" autocomplete="off" required><button>Send</button></form>
-    </div>`);
+  const $ = (id) => root.getElementById(id);
+  const box = $("box"), log = $("log"), q = $("q");
 
-  const $ = (id) => document.getElementById(id);
-  const log = $("pc-log");
+  // show text, turning links, emails and phone numbers into tappable links (never innerHTML with AI text)
+  const LINK = /(https?:\/\/[^\s)]*[^\s).,!?]|[\w.+-]+@[\w-]+(?:\.[\w-]+)+|(?:\+|\b0)\d[\d\s-]{7,}\d)/g;
+  const write = (el, text) => {
+    el.textContent = "";
+    text.split(LINK).forEach((part, i) => {
+      if (i % 2 === 0) return part && el.append(part);
+      const a = document.createElement("a");
+      a.textContent = part;
+      a.href = part.startsWith("http") ? part : part.includes("@") ? `mailto:${part}` : `tel:${part.replace(/[\s-]/g, "")}`;
+      if (part.startsWith("http")) { a.target = "_blank"; a.rel = "noopener"; }
+      el.append(a);
+    });
+  };
   const say = (text, who) => {
     const div = document.createElement("div");
-    div.className = `pc-msg pc-${who}`;
-    div.textContent = text; // textContent, not innerHTML: never render AI output as HTML
+    div.className = `msg ${who}`;
+    who === "bot" ? write(div, text) : (div.textContent = text);
     log.append(div);
     log.scrollTop = log.scrollHeight;
     return div;
@@ -60,44 +128,45 @@
 
   async function send(message) {
     say(message, "me");
-    const reply = say("Typing…", "bot");
+    const reply = say("", "bot");
+    reply.innerHTML = '<span class="dots" aria-label="Shohan Jr is typing"><i></i><i></i><i></i></span>';
     try {
       const data = await post("/chat", { message, history: history.slice(-10) });
-      reply.textContent = data.reply;
+      write(reply, data.reply);
       history.push({ role: "user", content: message }, { role: "assistant", content: data.reply.slice(0, 2000) });
       if (data.book) showForm();
     } catch {
-      reply.textContent = "Sorry, I couldn't answer right now. Please email dev.shohanur@gmail.com.";
+      write(reply, FALLBACK);
     }
+    log.scrollTop = log.scrollHeight;
   }
 
   function showForm() {
-    if ($("pc-lead")) return $("pc-lead").scrollIntoView({ behavior: "smooth" });
+    if ($("lead")) return $("lead").scrollIntoView({ behavior: "smooth" });
     const form = document.createElement("form");
-    form.id = "pc-lead";
-    form.className = "pc-msg pc-bot";
+    form.id = "lead";
     form.innerHTML = `
-      <strong>📅 Book an appointment</strong>
+      <h3>Book a <em>call</em></h3>
       <label>Your name *<input name="name" required maxlength="100" autocomplete="name"></label>
       <label>Email *<input name="email" type="email" required maxlength="200" autocomplete="email"></label>
       <label>Phone / WhatsApp<input name="phone" type="tel" maxlength="40" autocomplete="tel"></label>
       <label>What do you need? *<select name="service" required><option value="">Choose…</option>${SERVICES.map((s) => `<option>${s}</option>`).join("")}</select></label>
       <label>Preferred date &amp; time *<input name="preferred_time" type="datetime-local" required></label>
       <label>Project details<textarea name="details" rows="3" maxlength="1000"></textarea></label>
-      <button>Request appointment</button>`;
+      <button class="go">Request appointment</button>`;
     const now = new Date();
     form.elements.preferred_time.min = new Date(now - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
     form.onsubmit = async (e) => {
       e.preventDefault();
       const lead = Object.fromEntries(new FormData(form));
       lead.preferred_time = `${lead.preferred_time.replace("T", " ")} (${Intl.DateTimeFormat().resolvedOptions().timeZone})`;
-      form.querySelector("button").disabled = true;
+      form.querySelector(".go").disabled = true;
       try {
         await post("/lead", lead);
         form.remove();
         say(`✅ Thanks ${lead.name}! Your request is saved. Shohan will email you to confirm the appointment.`, "bot");
       } catch {
-        form.querySelector("button").disabled = false;
+        form.querySelector(".go").disabled = false;
         say("Sorry, that didn't go through. Please check the form or email dev.shohanur@gmail.com.", "bot");
       }
     };
@@ -106,18 +175,34 @@
     form.querySelector("input").focus();
   }
 
-  const toggle = () => { $("pc-box").hidden = !$("pc-box").hidden; if (!$("pc-box").hidden) $("pc-in").focus(); };
-  $("pc-btn").onclick = toggle;
-  $("pc-x").onclick = toggle;
-  $("pc-chips").onclick = (e) => {
+  const setOpen = (open) => {
+    box.classList.toggle("open", open);
+    $("open").classList.toggle("on", open);
+    $("open").setAttribute("aria-expanded", open);
+    $("open").setAttribute("aria-label", open ? "Close chat" : "Chat with Shohan Jr");
+    $("nudge").hidden = true;
+    if (open) q.focus();
+  };
+  $("open").onclick = () => setOpen(!box.classList.contains("open"));
+  $("close").onclick = () => setOpen(false);
+  $("nudge").onclick = () => setOpen(true);
+  root.addEventListener("keydown", (e) => { if (e.key === "Escape") setOpen(false); });
+  $("chips").onclick = (e) => {
     const chip = e.target.closest("button");
     if (chip) chip.dataset.q ? send(chip.dataset.q) : showForm();
   };
-  $("pc-form").onsubmit = (e) => {
+  $("ask").onsubmit = (e) => {
     e.preventDefault();
-    const message = $("pc-in").value.trim();
-    $("pc-in").value = "";
+    const message = q.value.trim();
+    q.value = "";
     if (message) send(message);
   };
-  say("Hi! 👋 I'm Shohan's assistant. What do you need today? Pick an option below or type your question.", "bot");
+
+  // a friendly nudge once per visit, after a few seconds
+  let nudged = false;
+  try { nudged = sessionStorage.getItem("shohanjr-nudged"); sessionStorage.setItem("shohanjr-nudged", "1"); } catch {}
+  if (!nudged) {
+    setTimeout(() => { if (!box.classList.contains("open")) $("nudge").hidden = false; }, 4000);
+    setTimeout(() => { $("nudge").hidden = true; }, 16000);
+  }
 })();

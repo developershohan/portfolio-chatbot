@@ -43,17 +43,25 @@ chunks = RecursiveCharacterTextSplitter(chunk_size=800, chunk_overlap=100).split
 # 3. STORE (free embeddings that run locally, no API key needed)
 # ponytail: index is rebuilt in memory on every start (a few seconds for a portfolio); use vector_db.save_local() if knowledge/ gets large
 vector_db = FAISS.from_documents(chunks, FastEmbedEmbeddings(cache_dir="models"))
-retriever = vector_db.as_retriever(search_kwargs={"k": 4})
+retriever = vector_db.as_retriever(search_kwargs={"k": 6})  # more chunks = better-informed answers
 
 # 4. ANSWER
 prompt = ChatPromptTemplate.from_messages([
     ("system",
-     "You are the friendly assistant on the portfolio website of Shohanur Rahman (Shohan), proshohan.com. "
-     "Answer visitors' questions using ONLY the context below and the conversation so far. Refer to Shohan by name. "
-     "Be professional, warm and brief (2-4 sentences). "
-     "If the answer is not in the context, say you don't know and suggest emailing dev.shohanur@gmail.com. "
-     "If the visitor wants to hire Shohan, get a quote, or book a call or meeting, invite them to fill in "
-     "the appointment form and end your reply with [BOOK].\n\n"
+     "You are Shohan Jr, the friendly AI assistant on the portfolio website of Shohanur Rahman (Shohan), proshohan.com. "
+     "Your job is to help visitors learn about Shohan's work and to turn interested visitors into clients.\n"
+     "Rules:\n"
+     "- Use ONLY the facts in the context below and the conversation so far. Never invent prices, timelines, clients or skills.\n"
+     "- Refer to Shohan by name. If asked who you are, say you are Shohan Jr, Shohan's AI assistant.\n"
+     "- When asked how to contact, call or reach Shohan, give every contact option in the context "
+     "(phone, email, contact form, LinkedIn), not just one.\n"
+     "- Reply in the visitor's language (for example English or Bangla).\n"
+     "- Be warm, confident and brief: 2-4 short sentences in plain text, no markdown. "
+     "For several items, put each on its own line starting with \"- \".\n"
+     "- Add the most relevant link from the context when it helps (a project URL, the projects page, the CV).\n"
+     "- If something is not in the context, say you're not sure and offer Shohan's email and phone.\n"
+     "- If the visitor wants to hire Shohan, get a quote, discuss a project, or book a call or meeting, "
+     "invite them to fill in the appointment form that appears below in this chat and end your reply with [BOOK].\n\n"
      "Context:\n{context}"),
     MessagesPlaceholder("history"),  # the chat so far, so follow-up questions make sense
     ("human", "{question}"),
@@ -80,7 +88,7 @@ def ask(q: Question) -> dict:
     context = "\n\n".join(d.page_content for d in found)
     history = [(t.role, t.content) for t in q.history]
     reply = chain.invoke({"context": context, "history": history, "question": q.message})
-    return {"reply": reply.replace("[BOOK]", "").strip(), "book": "[BOOK]" in reply}
+    return {"reply": reply.replace("[BOOK]", "").replace("**", "").strip(), "book": "[BOOK]" in reply}
 
 
 # 5. LEADS
@@ -176,5 +184,9 @@ def widget():
 
 @app.get("/")
 def home():  # test page: open it in a browser to try the widget
-    return HTMLResponse('<meta name="viewport" content="width=device-width,initial-scale=1">'
-                        '<h1>Portfolio chatbot is running</h1><script src="/widget.js" defer></script>')
+    return HTMLResponse(  # same fonts as proshohan.com, so the preview looks like the real site
+        '<meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500'
+        '&family=Teko:wght@500;600&family=Playfair+Display:ital,wght@1,700&display=swap">'
+        '<body style="background:#121212;color:#fff;font-family:Kanit,sans-serif">'
+        '<h1>Shohan Jr is running</h1><script src="/widget.js" defer></script>')
