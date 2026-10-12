@@ -50,7 +50,9 @@
     #q:focus{border-color:var(--lime)}
     #q::placeholder{color:#777}
     .round{flex:none;width:44px;height:44px;border:0;border-radius:50%;background:var(--lime);color:#0b0b0b;display:grid;place-items:center}
-    .note{padding:0 14px 10px;font-size:11px;color:#666;text-align:center}
+    .note{padding:0 14px 10px;font-size:11px;letter-spacing:.04em;color:#6b6b6b;text-align:center}
+    .note a{color:var(--lime);text-decoration:none;font-weight:500}
+    .note a:hover{text-decoration:underline}
     #lead{align-self:stretch;display:flex;flex-direction:column;gap:10px;padding:16px;background:var(--card);border:1px solid var(--line);border-radius:16px;animation:up .25s ease}
     #lead h3{margin:0;font:600 26px/1 var(--head);text-transform:uppercase;letter-spacing:.03em;color:#fff}
     #lead h3 em{font:italic 700 20px "Playfair Display",Georgia,serif;text-transform:none;color:var(--lime)}
@@ -90,7 +92,7 @@
       <input id="q" aria-label="Your question" placeholder="Ask Shohan Jr anything…" maxlength="500" autocomplete="off" required>
       <button class="round" aria-label="Send"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
     </form>
-    <div class="note">AI assistant · answers can be imperfect</div>
+    <div class="note">Designed &amp; built by <a href="https://proshohan.com" target="_blank" rel="noopener">Developer Shohan</a></div>
   </div>
   <div id="nudge" hidden>👋 Hi! I'm <b>Shohan Jr</b>. Need a website? Ask me anything.</div>
   <button id="open" aria-label="Chat with Shohan Jr" aria-expanded="false">
