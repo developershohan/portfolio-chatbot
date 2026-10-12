@@ -21,6 +21,13 @@ reply = client.post("/chat", json={"message": "Can we meet?", "history": [
 assert reply == {"reply": "Happy to help!", "book": True}, reply
 assert [m.type for m in seen[0]] == ["system", "human", "ai", "human"], "chat history must reach the LLM"
 
+# the form opens when the visitor asks for it, even if the AI forgets [BOOK]
+app.chain = app.prompt | RunnableLambda(lambda p: "Sure.")
+for message, wants_form in [("ami form chai", True), ("ফর্মটা দাও", True), ("appointment nite chai", True),
+                            ("What services do you offer?", False), ("সোহানের ফেসবুক লিংক?", False),
+                            ("Tell me about Bookkeeping By Alo", False)]:
+    assert client.post("/chat", json={"message": message}).json()["book"] is wants_form, message
+
 assert client.post("/chat", json={"message": "x" * 501}).status_code == 422
 assert client.post("/lead", json={"name": "A", "email": "nope", "service": "x", "preferred_time": "y"}).status_code == 422
 assert client.get("/leads.xlsx").status_code == 401

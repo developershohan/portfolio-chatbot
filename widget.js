@@ -104,14 +104,14 @@
   const box = $("box"), log = $("log"), q = $("q");
 
   // show text, turning links, emails and phone numbers into tappable links (never innerHTML with AI text)
-  const LINK = /(https?:\/\/[^\s)]*[^\s).,!?]|[\w.+-]+@[\w-]+(?:\.[\w-]+)+|(?:\+|\b0)\d[\d\s-]{7,}\d)/g;
+  const LINK = /(https?:\/\/[^\s)]*[^\s).,!?]|[\w.+-]+@[\w-]+(?:\.[\w-]+)+|(?:\+|\b0)\d[\d\s‐-―-]{7,}\d)/g; // ‐-―: the fancy dashes AI writes in phone numbers
   const write = (el, text) => {
     el.textContent = "";
     text.split(LINK).forEach((part, i) => {
       if (i % 2 === 0) return part && el.append(part);
       const a = document.createElement("a");
       a.textContent = part;
-      a.href = part.startsWith("http") ? part : part.includes("@") ? `mailto:${part}` : `tel:${part.replace(/[\s-]/g, "")}`;
+      a.href = part.startsWith("http") ? part : part.includes("@") ? `mailto:${part}` : `tel:${part.replace(/[^\d+]/g, "")}`;
       if (part.startsWith("http")) { a.target = "_blank"; a.rel = "noopener"; }
       el.append(a);
     });

@@ -9,6 +9,7 @@ Read top to bottom, it runs in 5 steps:
   5. LEADS  - appointment requests are saved in a Postgres database, emailed to you, and downloadable as an Excel sheet
 """
 import os
+import re
 import secrets
 from io import BytesIO
 from pathlib import Path
@@ -55,13 +56,15 @@ prompt = ChatPromptTemplate.from_messages([
      "- Refer to Shohan by name. If asked who you are, say you are Shohan Jr, Shohan's AI assistant.\n"
      "- When asked how to contact, call or reach Shohan, give every contact option in the context "
      "(phone, email, contact form, LinkedIn), not just one.\n"
-     "- Reply in the visitor's language (for example English or Bangla).\n"
+     "- Reply in the visitor's language (for example English or Bangla). In Bangla, always write Shohan's name as সোহান.\n"
      "- Be warm, confident and brief: 2-4 short sentences in plain text, no markdown. "
      "For several items, put each on its own line starting with \"- \".\n"
      "- Add the most relevant link from the context when it helps (a project URL, the projects page, the CV).\n"
      "- If something is not in the context, say you're not sure and offer Shohan's email and phone.\n"
-     "- If the visitor wants to hire Shohan, get a quote, discuss a project, or book a call or meeting, "
-     "invite them to fill in the appointment form that appears below in this chat and end your reply with [BOOK].\n\n"
+     "- If the visitor asks for a form, wants to hire Shohan, get a quote, discuss a project, or book a call, "
+     "meeting or appointment: reply in ONE short sentence that the booking form is right below in this chat, "
+     "and end your reply with [BOOK]. Do not send them to a link or contact page and do not list steps; "
+     "the form opens automatically.\n\n"
      "Context:\n{context}"),
     MessagesPlaceholder("history"),  # the chat so far, so follow-up questions make sense
     ("human", "{question}"),
@@ -80,6 +83,11 @@ class Question(BaseModel):
     history: list[Turn] = Field(default=[], max_length=10)
 
 
+# safety net: these words always open the booking form, even if the AI forgets to add [BOOK]
+WANTS_BOOKING = re.compile(r"\b(forms?|book(ing)?|appointment|meeting|schedule|hire|quote)\b"
+                           r"|ফর্ম|ফরম|বুকিং|বুক কর|অ্যাপয়েন্টমেন্ট|এপয়েন্টমেন্ট|মিটিং|হায়ার", re.IGNORECASE)  # not bare বুক: ফেসবুক
+
+
 def ask(q: Question) -> dict:
     # search with the previous question too, so "tell me more about it" still finds the right chunks
     # ponytail: cheap follow-up trick; switch to an LLM query rewrite (history-aware retriever) if follow-ups still miss
@@ -88,7 +96,8 @@ def ask(q: Question) -> dict:
     context = "\n\n".join(d.page_content for d in found)
     history = [(t.role, t.content) for t in q.history]
     reply = chain.invoke({"context": context, "history": history, "question": q.message})
-    return {"reply": reply.replace("[BOOK]", "").replace("**", "").strip(), "book": "[BOOK]" in reply}
+    book = "[BOOK]" in reply or bool(WANTS_BOOKING.search(q.message))
+    return {"reply": reply.replace("[BOOK]", "").replace("**", "").strip(), "book": book}
 
 
 # 5. LEADS
