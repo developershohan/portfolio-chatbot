@@ -21,7 +21,7 @@ visitor question + chat so far ──> find 4 closest chunks
 | LangChain | glues the AI steps together | free |
 | FastEmbed | turns text into vectors, runs inside the app | free, no key |
 | FAISS | the vector database, finds similar chunks | free |
-| Groq (Llama 3.3 70B) | the LLM that writes the answer | free tier |
+| Groq (GPT-OSS 120B) | the LLM that writes the answer | free tier |
 | Neon | Postgres database for appointment requests | free tier |
 | Resend | emails you when someone books | free tier |
 | Render | runs the Python app | free tier |
@@ -117,7 +117,8 @@ Edit or add files in `knowledge/`, then `git add . && git commit -m "update" && 
 
 - Render's free server sleeps after 15 minutes without visitors. The widget wakes it up as soon as someone
   opens your site, but the very first answer can still take up to a minute.
-- Groq's free tier allows about 1,000 chats/day on the default model. Add a `MODEL` environment variable
-  on Render to switch (e.g. `llama-3.1-8b-instant` for many more). See https://console.groq.com/docs/models.
+- Groq's free tier has daily request and token limits per model (check https://console.groq.com/settings/limits).
+  Groq retires models from time to time: if chat suddenly fails, check https://console.groq.com/docs/deprecations
+  and add a `MODEL` environment variable on Render with the replacement (e.g. `openai/gpt-oss-20b`).
 - Only `https://proshohan.com` can call the API (CORS in `app.py`). Add other domains there if needed.
 - Brand colour: change `COLOR` at the top of `widget.js`. Services in the form: `SERVICES` in `widget.js`.

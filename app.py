@@ -58,7 +58,7 @@ prompt = ChatPromptTemplate.from_messages([
     MessagesPlaceholder("history"),  # the chat so far, so follow-up questions make sense
     ("human", "{question}"),
 ])
-llm = ChatGroq(model=os.getenv("MODEL", "llama-3.3-70b-versatile"), temperature=0.2)
+llm = ChatGroq(model=os.getenv("MODEL", "openai/gpt-oss-120b"), temperature=0.2)
 chain = prompt | llm | StrOutputParser()
 
 
