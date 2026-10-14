@@ -309,6 +309,10 @@
   };
 
   async function startCall() {
+    if (document.featurePolicy?.allowsFeature("microphone") === false) { // the site's Permissions-Policy header switches the mic off
+      console.warn("Shohan Jr voice: this page's Permissions-Policy header blocks the microphone. Change microphone=() to microphone=(self).");
+      return status("Voice is switched off by this website's settings. Please use the chat or call 01580 334007.");
+    }
     const c = call = { turn: null };
     $("call").disabled = true;
     status("Connecting…");
@@ -316,8 +320,9 @@
     c.mic = new AudioContext();
     c.out = new AudioContext({ sampleRate: 24000 }); // Gemini speaks at 24 kHz
     try {
-      const { token, model } = await post("/voice-token", { now: new Date().toString() });
+      // microphone first: if the visitor says no, no call (and no free-quota token) is used up
       c.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+      const { token, model } = await post("/voice-token", { now: new Date().toString() });
       await Promise.all([c.mic.audioWorklet.addModule(WORKLETS), c.out.audioWorklet.addModule(WORKLETS)]);
       if (call !== c) return cleanup(c); // hung up while connecting
       c.speaker = new AudioWorkletNode(c.out, "speaker");
