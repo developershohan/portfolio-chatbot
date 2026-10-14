@@ -1,16 +1,20 @@
 """
 Portfolio chatbot: RAG (Retrieval-Augmented Generation) with LangChain.
 
-Read top to bottom, it runs in 5 steps:
+Read top to bottom, it runs in 6 steps:
   1. LOAD   - read every .md file in the knowledge/ folder
   2. SPLIT  - cut the text into small chunks
   3. STORE  - turn each chunk into a vector (a list of numbers) and keep them in FAISS, the vector database
   4. ANSWER - find the chunks most similar to the question and hand them, plus the chat so far, to the LLM
   5. LEADS  - appointment requests are saved in a Postgres database, emailed to you, and downloadable as an Excel sheet
+  6. VOICE  - live voice calls with Google's Gemini Live (free tier), which can also book appointments
 """
 import os
 import re
 import secrets
+import time
+from datetime import datetime, timedelta, timezone
+from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 from typing import Literal
@@ -18,7 +22,7 @@ from typing import Literal
 import httpx
 import psycopg
 from dotenv import load_dotenv
-from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException
+from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, Response
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
@@ -71,7 +75,13 @@ prompt = ChatPromptTemplate.from_messages([
     MessagesPlaceholder("history"),  # the chat so far, so follow-up questions make sense
     ("human", "{question}"),
 ])
-llm = ChatGroq(model=os.getenv("MODEL", "openai/gpt-oss-120b"), temperature=0.2)
+def groq(model: str) -> ChatGroq:
+    # gpt-oss models think before answering; "low" thinking keeps replies fast and saves free-tier tokens
+    return ChatGroq(model=model, temperature=0.2, reasoning_effort="low" if "gpt-oss" in model else None)
+
+
+# if the main model is busy, rate-limited or retired, a smaller one answers instead of an error
+llm = groq(os.getenv("MODEL", "openai/gpt-oss-120b")).with_fallbacks([groq("openai/gpt-oss-20b")])
 chain = prompt | llm | StrOutputParser()
 
 
@@ -93,14 +103,20 @@ DETAILS = re.compile(r"\[(NAME|EMAIL|PHONE):([^\]]*)\]", re.IGNORECASE)
 
 
 def ask(q: Question) -> dict:
+    return answer(q.message, tuple((t.role, t.content) for t in q.history))
+
+
+# same question + same chat so far = instant answer from memory, no Groq call (the quick buttons hit this a lot)
+# ponytail: cleared on restart, which is also when knowledge/ changes
+@lru_cache(maxsize=512)
+def answer(message: str, history: tuple) -> dict:
     # search with the previous question too, so "tell me more about it" still finds the right chunks
     # ponytail: cheap follow-up trick; switch to an LLM query rewrite (history-aware retriever) if follow-ups still miss
-    previous = next((t.content for t in reversed(q.history) if t.role == "user"), "")
-    found = retriever.invoke(f"{previous}\n{q.message}")
+    previous = next((content for role, content in reversed(history) if role == "user"), "")
+    found = retriever.invoke(f"{previous}\n{message}")
     context = "\n\n".join(d.page_content for d in found)
-    history = [(t.role, t.content) for t in q.history]
-    reply = chain.invoke({"context": context, "history": history, "question": q.message})
-    book = "[BOOK]" in reply or bool(WANTS_BOOKING.search(q.message))
+    reply = chain.invoke({"context": context, "history": list(history), "question": message})
+    book = "[BOOK]" in reply or bool(WANTS_BOOKING.search(message))
     prefill = {key.lower(): value.strip()[:100] for key, value in DETAILS.findall(reply) if value.strip()}
     reply = DETAILS.sub("", reply).replace("[BOOK]", "").replace("**", "").strip()
     return {"reply": reply, "book": book, "prefill": prefill}
@@ -156,6 +172,87 @@ def to_excel(headers: list, rows: list) -> bytes:
     return out.getvalue()
 
 
+# 6. VOICE
+# The visitor's browser talks to Gemini Live directly. This server only hands out a one-time token, with
+# Shohan Jr's instructions, knowledge and booking tool locked inside, so a visitor can't change them.
+# The knowledge is small enough to give the voice agent all of it, so voice needs no vector search.
+VOICE_RULES = """You are Shohan Jr, the friendly AI voice assistant on the portfolio website of Shohanur Rahman (Shohan), proshohan.com. You are on a live voice call with a website visitor.
+- Speak naturally and briefly: one to three short sentences, then let the visitor talk.
+- Answer only from the facts below. Never invent prices, timelines, clients or skills. If you don't know, say so and offer Shohan's phone number or email.
+- Reply in the language the visitor speaks (English or Bangla). In Bangla, say Shohan's name as সোহান.
+- Never read out web addresses; say it's on Shohan's website instead. You may say the email address and phone number.
+- When you receive [call started], greet the visitor in one short sentence: you are Shohan Jr, Shohan's AI assistant, and they can talk in English or Bangla.
+- To book a call or meeting with Shohan, ask one question at a time for: their name, email, what they need, and their preferred date and time. Phone and project details are optional. Spell the email back to confirm it, then call book_appointment. When it succeeds, tell them Shohan will email them to confirm.
+The visitor's local date and time right now: {now}
+
+Facts about Shohan:
+{knowledge}"""
+
+BOOK_TOOL = {"functionDeclarations": [{
+    "name": "book_appointment",
+    "description": "Save the visitor's appointment request with Shohan. Only call it after the visitor confirmed the details.",
+    "parameters": {"type": "OBJECT", "required": ["name", "email", "service", "preferred_time"], "properties": {
+        "name": {"type": "STRING", "description": "visitor's name"},
+        "email": {"type": "STRING", "description": "email address, spelled back and confirmed"},
+        "phone": {"type": "STRING", "description": "phone or WhatsApp number, optional"},
+        "service": {"type": "STRING", "description": "what they need, e.g. Custom WordPress theme, Custom plugin or widget, "
+                    "WooCommerce / e-commerce, WordPress debugging, React / headless WordPress, API integration"},
+        "preferred_time": {"type": "STRING", "description": "preferred date and time in the visitor's local time, e.g. 2026-10-20 15:00"},
+        "details": {"type": "STRING", "description": "short description of the project, optional"},
+    }},
+}]}
+
+# lock every field we set, so the visitor's browser can't swap the instructions, voice or tools
+VOICE_LOCK = ("model,generationConfig.responseModalities,generationConfig.speechConfig,"
+              "systemInstruction.parts,tools,inputAudioTranscription,outputAudioTranscription")
+
+
+class CallStart(BaseModel):
+    now: str = Field("", max_length=200)  # the visitor's clock, so "tomorrow at 3" means their tomorrow
+
+
+recent_calls: dict[str, list[float]] = {}  # ponytail: in-memory per-visitor limit, fine for one server process
+
+
+def voice_token(start: CallStart, ip: str) -> dict:
+    key = os.getenv("GEMINI_API_KEY")
+    if not key:
+        raise HTTPException(503, "Voice is not set up: add GEMINI_API_KEY to .env")
+    # protect the free quota: at most 5 calls per visitor every 10 minutes
+    now = time.time()
+    recent_calls[ip] = [t for t in recent_calls.get(ip, []) if now - t < 600]
+    if len(recent_calls[ip]) >= 5:
+        raise HTTPException(429, "Too many calls, please try again in a few minutes")
+    recent_calls[ip].append(now)
+
+    model = "models/" + os.getenv("GEMINI_LIVE_MODEL", "gemini-3.8-live")
+    knowledge = "\n\n".join(d.page_content for d in docs)
+    visitor_clock = re.sub(r"[^\w ,:+./()-]", "", start.now)[:100] or "unknown"
+    utc = datetime.now(timezone.utc)
+    res = httpx.post("https://generativelanguage.googleapis.com/v1beta/auth_tokens", timeout=15,
+                     headers={"x-goog-api-key": key}, json={
+        "uses": 1,  # one call per token
+        "expireTime": (utc + timedelta(minutes=16)).isoformat(),  # Gemini ends voice calls after 15 minutes anyway
+        "newSessionExpireTime": (utc + timedelta(minutes=1)).isoformat(),
+        "bidiGenerateContentSetup": {
+            "model": model,
+            "generationConfig": {
+                "responseModalities": ["AUDIO"],
+                "speechConfig": {"voiceConfig": {"prebuiltVoiceConfig": {"voiceName": os.getenv("GEMINI_VOICE", "Puck")}}},
+            },
+            "systemInstruction": {"parts": [{"text": VOICE_RULES.format(now=visitor_clock, knowledge=knowledge)}]},
+            "tools": [BOOK_TOOL],
+            "inputAudioTranscription": {},  # write what both sides say into the chat
+            "outputAudioTranscription": {},
+        },
+        "fieldMask": VOICE_LOCK,
+    })
+    if res.is_error:
+        print("Gemini token error:", res.status_code, res.text[:500])
+        raise HTTPException(502, "Voice is unavailable right now")
+    return {"token": res.json()["name"], "model": model}
+
+
 # The web API that the chat widget on your site talks to
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_methods=["POST"], allow_headers=["*"],
@@ -175,6 +272,13 @@ def save_lead(lead: Lead, background: BackgroundTasks):
                      lead.model_dump())
     background.add_task(notify, lead)  # sent after the visitor sees "Thanks", so they never wait for email
     return {"ok": True}
+
+
+@app.post("/voice-token")
+def start_call(start: CallStart, request: Request):
+    # behind Traefik the visitor's address arrives in X-Forwarded-For (Traefik overwrites any fake one)
+    ip = request.headers.get("x-forwarded-for", request.client.host if request.client else "").split(",")[0].strip()
+    return voice_token(start, ip)
 
 
 @app.get("/leads.xlsx")

@@ -1,8 +1,8 @@
 # Shohan Jr: portfolio chatbot (LangChain + RAG + FAISS)
 
-A chat assistant for proshohan.com that answers visitors' questions about you, remembers the conversation,
-and lets visitors book an appointment. Bookings are saved in a database, emailed to you, and downloadable
-as an Excel sheet. Runs 24/7 on your Hostinger VPS, next to n8n.
+A chat and voice assistant for proshohan.com that answers visitors' questions about you, remembers the
+conversation, and lets visitors book an appointment by typing or by talking. Bookings are saved in a database,
+emailed to you, and downloadable as an Excel sheet. Runs 24/7 on your Hostinger VPS, next to n8n.
 
 ## How it works
 
@@ -14,6 +14,9 @@ visitor question + chat so far ──> find 6 closest chunks
              chunks + chat + question ──> Groq LLM ──> answer
                                                          │
                          "I want to hire you" ──> booking form ──> Postgres DB ──> email + leads.xlsx
+
+Voice tab: browser microphone ⇄ Gemini Live (real-time voice) ──> book_appointment ──> same database + email
+           (our server only hands out a one-time token with Shohan Jr's instructions and knowledge locked in)
 ```
 
 | Piece | What it is | Cost |
@@ -21,7 +24,8 @@ visitor question + chat so far ──> find 6 closest chunks
 | LangChain | glues the AI steps together | free |
 | FastEmbed | turns text into vectors, runs inside the app | free, no key |
 | FAISS | the vector database, finds similar chunks | free |
-| Groq (GPT-OSS 120B) | the LLM that writes the answer | free tier |
+| Groq (GPT-OSS 120B, falls back to 20B) | the LLM that writes the chat answers | free tier |
+| Gemini Live | real-time voice calls in English and Bangla | free tier |
 | Neon | Postgres database for appointment requests | free tier |
 | Resend | emails you when someone books | free tier |
 | Hostinger VPS | runs the app in Docker, behind n8n's Traefik (HTTPS) | your existing VPS |
@@ -41,6 +45,7 @@ visitor question + chat so far ──> find 6 closest chunks
    copy the connection string (starts with `postgresql://`). The `leads` table is created automatically.
 3. **Admin password**: make one up. It protects your Excel download.
 4. **Email alerts** (optional): sign up at https://resend.com **with dev.shohanur@gmail.com** → API Keys → Create.
+5. **Voice calls**: https://aistudio.google.com/apikey → **Create API key** (free, no credit card) → `GEMINI_API_KEY`.
 
 ## 2. Run it on your computer (optional)
 
@@ -118,6 +123,25 @@ and in the VPS terminal pull and rebuild:
 ```bash
 cd /opt/portfolio-chatbot && git pull && docker compose up -d --build
 ```
+
+## Voice calls
+
+The **Voice** tab gives visitors a real-time call with Shohan Jr (Google Gemini Live, free tier). They tap
+**Start call**, speak English or Bangla, and can interrupt like on a phone. Both sides of the call are written
+into the Chat tab, and Shohan Jr can book an appointment by voice (saved and emailed like the form).
+
+- Works in Chrome, Edge, Safari and Firefox, on desktop and phone.
+- Calls end after 15 minutes (Gemini's limit). Each visitor can start 5 calls per 10 minutes, which protects your free quota.
+- Google doesn't publish exact free-tier limits; developers report roughly 5–6 calls at the same time.
+  On the free tier, Google may use conversations to improve its products.
+- Change the voice with `GEMINI_VOICE=Kore` (or Charon, Fenrir, Aoede…) and the model with
+  `GEMINI_LIVE_MODEL=...` in `.env`, then `docker compose up -d`.
+
+## Performance
+
+- Chat answers usually take 1–2 seconds; GPT-OSS runs with low "thinking" effort for speed.
+- Repeated questions (like the quick buttons) are answered instantly from memory, without using your Groq quota.
+- If the main Groq model is busy or retired, a smaller one (`openai/gpt-oss-20b`) answers instead of an error.
 
 ## Good to know
 
