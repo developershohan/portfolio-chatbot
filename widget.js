@@ -1,16 +1,15 @@
-// Shohan Jr, the AI assistant for proshohan.com. Paste the loader snippet from README step 5 before </body>.
-// It fetches this file only after the page has loaded, so a sleeping server can never hold up the site.
+// Shohan Jr, the AI assistant for proshohan.com. Paste the loader snippet from the README before </body>.
+// It fetches this file only after the page has loaded, so the chat can never slow down the site.
 (() => {
   if (window.shohanJr) return; // already on the page (snippet added twice, or re-run by a cache plugin)
   window.shohanJr = true;
   // currentScript is null when an optimisation plugin (NitroPack, WP Rocket...) runs the script itself
-  const API = document.currentScript?.src ? new URL(document.currentScript.src).origin : "https://portfolio-chatbot-9lli.onrender.com";
+  const API = document.currentScript?.src ? new URL(document.currentScript.src).origin : "https://chat.srv1836598.hstgr.cloud";
   const AVATAR = "https://proshohan.com/wp-content/uploads/2025/10/Generated-Image-October-03-2025-6_43PM.png";
   const SERVICES = ["Custom WordPress theme", "Custom plugin or widget", "WooCommerce / e-commerce",
     "WordPress debugging", "React / headless WordPress", "API integration", "Something else"];
   const FALLBACK = "Sorry, I couldn't answer right now. Please email dev.shohanur@gmail.com or call +880 1580-334007.";
   const history = []; // the conversation so far, sent with every question so follow-ups work
-  fetch(API, { mode: "no-cors" }).catch(() => {}); // wake the free server while the visitor reads the page
 
   // Shadow DOM: the widget gets its own little page, so the theme's CSS can't break it (and it can't break the theme)
   const host = document.createElement("div");

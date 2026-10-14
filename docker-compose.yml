@@ -1,0 +1,21 @@
+# Runs Shohan Jr on the VPS behind the Traefik that n8n already runs (free automatic HTTPS).
+# Nothing in the n8n stack is touched: the chatbot just joins its network.
+services:
+  chatbot:
+    build: .
+    env_file: .env
+    restart: always
+    networks: [web]
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=${TRAEFIK_NETWORK}
+      - traefik.http.routers.chatbot.rule=Host(`${DOMAIN}`)
+      - traefik.http.routers.chatbot.entrypoints=web,websecure
+      - traefik.http.routers.chatbot.tls=true
+      - traefik.http.routers.chatbot.tls.certresolver=mytlschallenge
+      - traefik.http.services.chatbot.loadbalancer.server.port=8000
+
+networks:
+  web:
+    external: true
+    name: ${TRAEFIK_NETWORK}
